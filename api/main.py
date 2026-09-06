@@ -1,13 +1,21 @@
 """api/main.py — FastAPI backend for verify_ai chat."""
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+import logfire
 
 import api.db as db
 from api.runner import get_status, start_run, start_resume
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+logfire.configure()
+logfire.instrument_langchain()
 
 
 @asynccontextmanager
@@ -17,6 +25,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="verify-ai", lifespan=lifespan)
+logfire.instrument_fastapi(app)
 
 _HTML = Path(__file__).parent.parent / "frontend" / "index.html"
 

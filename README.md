@@ -80,7 +80,7 @@ numbers. `api/` drives the pipeline per request. `frontend/` talks to `api/`.
 |------|---------|---------|
 | Python | 3.12 | Runtime |
 | [uv](https://docs.astral.sh/uv/getting-started/installation/) | latest | Package and venv manager |
-| tmux | any | Keep the server alive in WSL or a remote shell |
+| tmux | any | WSL/Linux only. Keeps the server alive when the terminal closes. Not needed on Windows — `make serve` opens a new PowerShell window instead. |
 
 You also need at least one API key. The pipeline defaults to Gemini free tier.
 
@@ -88,6 +88,7 @@ You also need at least one API key. The pipeline defaults to Gemini free tier.
 |----------|----------|-------|
 | `GEMINI_API_KEY` | Default path | Free tier. Get one at [aistudio.google.com](https://aistudio.google.com) |
 | `ANTHROPIC_API_KEY` | Opt-in only | Only needed when `LLM_PROVIDER=claude` |
+| `LOGFIRE_TOKEN` | Optional | Enables request tracing in Pydantic Logfire. Get one at [logfire.pydantic.dev](https://logfire.pydantic.dev). Omit to disable tracing. |
 
 ---
 
@@ -122,6 +123,14 @@ To use Claude instead of Gemini on a specific run, add:
 LLM_PROVIDER=claude
 ANTHROPIC_API_KEY=your_key_here
 ```
+
+To enable Logfire tracing, add:
+
+```
+LOGFIRE_TOKEN=your_token_here
+```
+
+If you omit `LOGFIRE_TOKEN`, the server starts normally and tracing is disabled.
 
 ### 4. Download and index the corpus
 
@@ -159,14 +168,17 @@ make index-force
 make serve
 ```
 
-This starts `uvicorn` inside a tmux session named `verifyai`. Open a browser
-and go to `http://localhost:8000`. The chat UI loads immediately.
+On **WSL or Linux**, this starts `uvicorn` inside a tmux session named
+`verifyai`. On **Windows**, it opens a new PowerShell window with uvicorn
+running. Open a browser and go to `http://localhost:8000`.
 
 To stop the server:
 
 ```bash
 make stop
 ```
+
+On Windows, `make stop` kills the process that holds port 8000.
 
 ---
 
@@ -221,7 +233,43 @@ can recover them. The chunker never splits a table across two chunks.
 
 ---
 
-## Notes for WSL users
+## Observability
+
+The pipeline uses [Pydantic Logfire](https://logfire.pydantic.dev) for
+request tracing. When `LOGFIRE_TOKEN` is set, every HTTP request, LangGraph
+node execution, and LangChain LLM call appears as a trace in the Logfire
+dashboard.
+
+### What Logfire tracks
+
+| Signal | Source |
+|--------|--------|
+| HTTP request duration and status | `logfire.instrument_fastapi(app)` |
+| LLM calls (prompt, model, latency) | `logfire.instrument_langchain()` |
+| LangGraph node execution order | included in LangChain instrumentation |
+
+### How to get a token
+
+1. Go to [logfire.pydantic.dev](https://logfire.pydantic.dev) and sign in.
+2. Create a project.
+3. Open **Settings → Write tokens** and create a new token.
+4. Add it to your `.env` file as `LOGFIRE_TOKEN=pylf_v2_...`.
+
+### Environment variable
+
+```
+LOGFIRE_TOKEN=pylf_v2_us_your_token_here
+```
+
+The token starts with `pylf_v2_`. Logfire reads it automatically when
+`logfire.configure()` runs at server startup. If the variable is absent,
+the server starts without tracing and prints no error.
+
+---
+
+## Notes for WSL and Windows users
+
+### WSL
 
 The `make serve` command uses tmux to keep the server alive. A background
 process started with `nohup &` dies when the WSL bash session ends. The tmux
@@ -233,3 +281,12 @@ If port 8000 is already in use, stop the existing session first:
 make stop
 make serve
 ```
+
+### Windows (PowerShell)
+
+`make serve` opens a new PowerShell window with uvicorn running. Close that
+window or run `make stop` to stop the server. `make stop` finds and kills
+the process that holds port 8000.
+
+All other targets (`install`, `download`, `chunk`, `index`, `ingest`,
+`check`, `clean`) run the same on both platforms.
