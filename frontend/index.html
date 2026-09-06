@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>verify_ai</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -155,18 +156,18 @@
     .msg-row.assistant { align-items: flex-start; }
 
     .bubble {
-      max-width: 68%;
+      max-width: 72%;
       padding: 12px 16px;
       border-radius: 18px;
-      line-height: 1.55;
+      line-height: 1.6;
       font-size: 15px;
-      white-space: pre-wrap;
       word-break: break-word;
     }
     .msg-row.user .bubble {
       background: #1d1d1f;
       color: #ffffff;
       border-bottom-right-radius: 5px;
+      white-space: pre-wrap;
     }
     .msg-row.assistant .bubble {
       background: #f0f0f2;
@@ -174,14 +175,24 @@
       border-bottom-left-radius: 5px;
     }
 
-    .citation {
-      margin-top: 6px;
-      padding: 6px 10px;
-      border-left: 2px solid #c8c8cc;
-      font-size: 12px;
-      color: #6e6e73;
-      line-height: 1.6;
+    .bubble h2 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .bubble p  { margin: 6px 0; }
+    .bubble em { color: #6e6e73; }
+    .bubble hr { border: none; border-top: 1px solid #d0d0d4; margin: 12px 0; }
+    .bubble strong { font-size: 22px; font-weight: 700; display: block; margin: 4px 0 10px; }
+
+    .bubble table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 8px 0;
+      font-size: 13px;
     }
+    .bubble th, .bubble td {
+      border: 1px solid #d0d0d4;
+      padding: 6px 10px;
+      text-align: left;
+    }
+    .bubble th { background: #e8e8ea; font-weight: 600; }
 
     .thinking {
       color: #6e6e73;
@@ -255,10 +266,10 @@
 <script>
   const API = '';
   const STARTERS = [
-    "What was Apple's current ratio in FY2023?",
-    "What was Microsoft's gross margin in the most recent 10-K?",
-    "What was Alphabet's total revenue in FY2023?",
-    "What is Amazon's operating income in the latest 10-K?",
+    "What was JPMorgan's ROE in FY2024?",
+    "What was Goldman Sachs's return on assets in FY2024?",
+    "What was Visa's current ratio in FY2024?",
+    "What was BlackRock's debt-to-equity ratio in FY2024?",
   ];
 
   let convId = null;
@@ -368,17 +379,15 @@
     const row = document.createElement('div');
     row.className = `msg-row ${role}`;
 
-    let cite = '';
-    if (numbers && numbers.length) {
-      const lines = numbers.map(n => {
-        const val = typeof n.value === 'number' ? n.value.toFixed(4) : n.value;
-        const unit = n.unit && n.unit !== 'ratio' && n.unit !== 'decimal' ? ' ' + n.unit : '';
-        return `<b>${esc(n.id)}</b>: ${val}${unit} — ${esc(n.doc_id)} · ${esc(n.line_item)}`;
-      }).join('<br>');
-      cite = `<div class="citation">${lines}</div>`;
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    if (role === 'assistant') {
+      bubble.innerHTML = marked.parse(content);
+    } else {
+      bubble.textContent = content;
     }
 
-    row.innerHTML = `<div class="bubble">${esc(content)}</div>${cite}`;
+    row.appendChild(bubble);
     box.appendChild(row);
     box.scrollTop = box.scrollHeight;
   }

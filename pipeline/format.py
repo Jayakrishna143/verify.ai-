@@ -9,6 +9,30 @@ log = logging.getLogger(__name__)
 
 CHUNKS_IN_PAYLOAD = 5
 
+METRIC_LABELS = {
+    "roe": "Return on Equity",
+    "roa": "Return on Assets",
+    "current_ratio": "Current Ratio",
+    "debt_to_equity": "Debt-to-Equity",
+    "revenue_growth": "Revenue Growth",
+}
+
+METRIC_AS_PCT = {"roe", "roa", "revenue_growth"}
+
+
+def _fmt_metric_value(value, metric_name):
+    if metric_name in METRIC_AS_PCT:
+        return f"{value * 100:.2f}%"
+    return f"{value:.4f}x"
+
+
+def _fmt_input_value(value):
+    if abs(value) >= 1e9:
+        return f"${value / 1e9:,.2f}B"
+    if abs(value) >= 1e6:
+        return f"${value / 1e6:,.2f}M"
+    return f"${value:,.0f}"
+
 
 def _trace_from_tool_result(result, idx):
     """Convert one tool result into NumberTrace list entries."""
@@ -55,59 +79,52 @@ def build_trace(tool_results):
     return traces
 
 
-def _format_one_result(res):
-    """Render one metric result as a human-readable bullet."""
+def _format_one_result_md(res):
+    """Render one metric result as a markdown section."""
+    metric = res["metric"]
+    label = METRIC_LABELS.get(metric, metric.replace("_", " ").title())
+
     if res.get("is_error"):
-        return "  - " + res["metric"] + ": " + res["error"]
+        doc_id = ""
+        inputs = res.get("inputs", [])
+        if inputs:
+            doc_id = inputs[0].get("citation", {}).get("doc_id", "")
+        ticker = doc_id.split("-")[0] if doc_id else "?"
+        return f"## {label} — {ticker}\n\n**Not available.** {res['error']}\n"
 
     value = res["value"]
-    unit = res.get("unit", "")
-    metric = res["metric"]
+    inputs = res.get("inputs", [])
+    first_cit = inputs[0]["citation"] if inputs else {}
+    doc_id = first_cit.get("doc_id", "?")
+    ticker = doc_id.split("-")[0] if "-" in doc_id else doc_id
+    fiscal_year = doc_id.split("FY")[-1] if "FY" in doc_id else "?"
 
-    if unit in ("ratio", "decimal"):
-        display = "{:.4f}".format(value)
-    elif unit == "%":
-        display = "{:.2f}%".format(value * 100)
-    else:
-        display = "{:,.2f}".format(value)
+    display = _fmt_metric_value(value, metric)
+    lines = [f"## {label} — {ticker} (FY{fiscal_year})", "", f"**{display}**", ""]
 
-    cit_parts = []
-    for inp in res.get("inputs", []):
-        cit = inp["citation"]
-        doc = cit.get("doc_id", "?")
-        period = cit.get("end", "?")
-        tag = cit.get("tag", cit.get("line_item", "?"))
-        cit_parts.append(doc + ", " + period + ", XBRL:" + tag)
+    if inputs:
+        lines.append("| Input | Value | Source |")
+        lines.append("|-------|-------|--------|")
+        for inp in inputs:
+            cit = inp["citation"]
+            tag = cit.get("tag", cit.get("line_item", "?"))
+            src_doc = cit.get("doc_id", "?")
+            lines.append(f"| {inp['name']} | {_fmt_input_value(inp['value'])} | {src_doc} · {tag} |")
+        lines.append("")
 
-    cit_str = " | ".join(cit_parts)
     formula = res.get("formula", "")
-    formula_str = " (formula: " + formula + ")" if formula else ""
+    if formula:
+        lines.append(f"*{formula}*")
 
-    line1 = "  - " + metric + ": " + display + formula_str
-    line2 = "    [" + cit_str + "]"
-    return line1 + "\n" + line2
+    return "\n".join(lines)
 
 
 def render_answer(question, plan, tool_results, chunks):
-    """Render the full answer as inline-bracket text for terminal display."""
-    lines = []
-    lines.append("Question: " + question)
-    lines.append("")
-    lines.append("Plan:")
-    lines.append(plan.strip())
-    lines.append("")
-    lines.append("Results:")
+    """Render the full answer as markdown for display in the chat UI."""
+    sections = []
     for res in tool_results:
-        lines.append(_format_one_result(res))
-    if chunks:
-        lines.append("")
-        lines.append("Context: " + str(len(chunks)) + " filing chunks retrieved.")
-        for c in chunks[:3]:
-            doc = c.get("doc_id") or "?"
-            sec = c.get("section_id") or "?"
-            snippet = (c.get("text") or "")[:120].replace("\n", " ")
-            lines.append("  [" + doc + " / " + sec + "] " + snippet + "...")
-    return "\n".join(lines)
+        sections.append(_format_one_result_md(res))
+    return "\n\n---\n\n".join(sections) if sections else "No results."
 
 
 def format_answer(question, plan, tool_results, chunks):
