@@ -25,6 +25,10 @@ conversations.db
 # Logs
 logs/
 
+# Research docs and eval scaffolding (local reference only)
+docs/
+eval/
+
 # Secrets
 .env
 
