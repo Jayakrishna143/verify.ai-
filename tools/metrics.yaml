@@ -1,0 +1,86 @@
+# Step 4 ontology — one entry per metric. Both Claude (via tool_specs) and the
+# deterministic functions in metrics.py read this file. One meaning per metric.
+#
+# Scope: the 4 cross-sector metrics that apply to all 15 finance filers
+# (Decision 6 + 11). current_ratio / gross_margin from the research examples are
+# NOT here — banks have no AssetsCurrent and gross_margin is meaningless for a
+# lender, so they would error on the whole corpus.
+#
+# source_concept maps each input to a LIST of candidate US-GAAP XBRL tags, tried
+# in order. The data layer uses the first tag present in a company's companyfacts
+# JSON. Most inputs need only one tag; revenue needs a fallback because GS reports
+# RevenuesNetOfInterestExpense instead of Revenues.
+
+current_ratio:
+  name: current_ratio
+  definition: Current assets divided by current liabilities. Short-term liquidity.
+  formula: AssetsCurrent / LiabilitiesCurrent
+  inputs:
+    - AssetsCurrent
+    - LiabilitiesCurrent
+  unit: ratio
+  source_concept:
+    AssetsCurrent: [us-gaap:AssetsCurrent]
+    LiabilitiesCurrent: [us-gaap:LiabilitiesCurrent]
+  notes: >
+    Only filers with a classified balance sheet report these tags. In this
+    finance corpus that is the payment networks (V, MA) — the banks and insurers
+    use an unclassified balance sheet, so the tool returns a "not available"
+    error for them, with the missing tag named.
+
+roe:
+  name: roe
+  definition: Net income divided by stockholders equity. Return on equity.
+  formula: NetIncomeLoss / StockholdersEquity
+  inputs:
+    - NetIncomeLoss
+    - StockholdersEquity
+  unit: ratio
+  source_concept:
+    NetIncomeLoss: [us-gaap:NetIncomeLoss, us-gaap:ProfitLoss]
+    StockholdersEquity: [us-gaap:StockholdersEquity, us-gaap:StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest]
+  notes: >
+    Uses parent stockholders equity (us-gaap:StockholdersEquity) when present —
+    14 of 15 filers. V tags only the including-noncontrolling-interest variant,
+    so it falls through to that. The two differ by a small NCI amount.
+
+roa:
+  name: roa
+  definition: Net income divided by total assets. Return on assets.
+  formula: NetIncomeLoss / Assets
+  inputs:
+    - NetIncomeLoss
+    - Assets
+  unit: ratio
+  source_concept:
+    NetIncomeLoss: [us-gaap:NetIncomeLoss, us-gaap:ProfitLoss]
+    Assets: [us-gaap:Assets]
+
+debt_to_equity:
+  name: debt_to_equity
+  definition: Total liabilities divided by total stockholders equity. Leverage.
+  formula: Liabilities / StockholdersEquity
+  inputs:
+    - Liabilities
+    - StockholdersEquity
+  unit: ratio
+  source_concept:
+    Liabilities: [us-gaap:Liabilities]
+    StockholdersEquity: [us-gaap:StockholdersEquity, us-gaap:StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest]
+
+revenue_growth:
+  name: revenue_growth
+  definition: Change in annual revenue from the prior year, as a fraction.
+  formula: (Revenue_t - Revenue_t_minus_1) / Revenue_t_minus_1
+  inputs:
+    - Revenue
+  unit: ratio
+  source_concept:
+    Revenue: [us-gaap:Revenues, us-gaap:RevenuesNetOfInterestExpense, us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax]
+  notes: >
+    Needs two fiscal years. The fallback order is load-bearing and encodes the
+    top-line choice. Try Revenues, then RevenuesNetOfInterestExpense (banks that
+    do not tag Revenues: AXP, GS, MS), then RevenueFromContractWithCustomer last
+    (the only revenue tag for BLK and V). RevenueFromContractWithCustomer is a
+    sub-component for AXP/COF/MET, so it must stay last — the earlier tags win
+    when present, giving the correct total for all 15 filers.

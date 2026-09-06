@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>verify_ai</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #ffffff;
+      color: #1d1d1f;
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 256px;
+      min-width: 256px;
+      background: #f5f5f7;
+      border-right: 1px solid #e0e0e0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #sidebar-title {
+      padding: 20px 16px 8px;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.2px;
+      color: #1d1d1f;
+    }
+
+    #new-btn {
+      margin: 8px 12px 12px;
+      padding: 9px 14px;
+      background: #1d1d1f;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      text-align: left;
+    }
+    #new-btn:hover { background: #3a3a3c; }
+
+    #conv-list { flex: 1; overflow-y: auto; }
+
+    .conv-item {
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid #e8e8e8;
+      cursor: pointer;
+      color: #1d1d1f;
+    }
+    .conv-item:hover { background: #ebebed; }
+    .conv-item.active { background: #e2e2e4; }
+
+    .conv-label {
+      flex: 1;
+      padding: 11px 8px 11px 16px;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 400;
+    }
+    .conv-item.active .conv-label { font-weight: 500; }
+
+    .conv-del {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      margin-right: 6px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: #aeaeb2;
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .conv-item:hover .conv-del { display: flex; }
+    .conv-del:hover { background: #d8d8da; color: #1d1d1f; }
+
+    /* ── Main area ── */
+    #main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background: #ffffff;
+    }
+
+    /* ── Message list ── */
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* ── Empty / welcome state ── */
+    #welcome {
+      margin: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      text-align: center;
+    }
+    #welcome h2 { font-size: 22px; font-weight: 600; color: #1d1d1f; }
+    #welcome p { font-size: 15px; color: #6e6e73; max-width: 380px; line-height: 1.5; }
+    #starter-chips {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+      max-width: 480px;
+    }
+    .chip {
+      padding: 13px 18px;
+      border: 1px solid #d2d2d7;
+      border-radius: 10px;
+      font-size: 14px;
+      color: #1d1d1f;
+      cursor: pointer;
+      text-align: left;
+      background: #ffffff;
+      line-height: 1.4;
+      transition: background 0.1s;
+    }
+    .chip:hover { background: #f5f5f7; border-color: #aeaeb2; }
+
+    .no-conv {
+      margin: auto;
+      color: #6e6e73;
+      font-size: 17px;
+    }
+
+    /* ── Bubbles ── */
+    .msg-row {
+      display: flex;
+      flex-direction: column;
+    }
+    .msg-row.user { align-items: flex-end; }
+    .msg-row.assistant { align-items: flex-start; }
+
+    .bubble {
+      max-width: 68%;
+      padding: 12px 16px;
+      border-radius: 18px;
+      line-height: 1.55;
+      font-size: 15px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .msg-row.user .bubble {
+      background: #1d1d1f;
+      color: #ffffff;
+      border-bottom-right-radius: 5px;
+    }
+    .msg-row.assistant .bubble {
+      background: #f0f0f2;
+      color: #1d1d1f;
+      border-bottom-left-radius: 5px;
+    }
+
+    .citation {
+      margin-top: 6px;
+      padding: 6px 10px;
+      border-left: 2px solid #c8c8cc;
+      font-size: 12px;
+      color: #6e6e73;
+      line-height: 1.6;
+    }
+
+    .thinking {
+      color: #6e6e73;
+      font-size: 14px;
+      font-style: italic;
+      padding: 6px 0;
+    }
+
+    /* ── Input bar ── */
+    #input-bar {
+      padding: 14px 48px 18px;
+      border-top: 1px solid #e0e0e0;
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    #input-bar.hidden { display: none; }
+
+    #msg-input {
+      flex: 1;
+      padding: 11px 14px;
+      border: 1px solid #c8c8cc;
+      border-radius: 10px;
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+      resize: none;
+      line-height: 1.4;
+      background: #ffffff;
+      color: #1d1d1f;
+      min-height: 44px;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    #msg-input:focus { border-color: #1d1d1f; }
+    #msg-input:disabled { background: #f5f5f7; }
+
+    #send-btn {
+      padding: 11px 20px;
+      background: #1d1d1f;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    #send-btn:hover { background: #3a3a3c; }
+    #send-btn:disabled { background: #aeaeb2; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div id="sidebar-title">verify_ai</div>
+  <button id="new-btn">+ New conversation</button>
+  <div id="conv-list"></div>
+</div>
+
+<div id="main">
+  <div id="messages">
+    <div class="no-conv">Select or create a conversation to start.</div>
+  </div>
+  <div id="input-bar" class="hidden">
+    <textarea id="msg-input" rows="1" placeholder="Ask a question about financial filings…"></textarea>
+    <button id="send-btn">Send</button>
+  </div>
+</div>
+
+<script>
+  const API = '';
+  const STARTERS = [
+    "What was Apple's current ratio in FY2023?",
+    "What was Microsoft's gross margin in the most recent 10-K?",
+    "What was Alphabet's total revenue in FY2023?",
+    "What is Amazon's operating income in the latest 10-K?",
+  ];
+
+  let convId = null;
+  let pollTimer = null;
+
+  async function req(method, path, body) {
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const r = await fetch(API + path, opts);
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  }
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>');
+  }
+
+  async function refreshSidebar() {
+    const convs = await req('GET', '/conversations');
+    const list = document.getElementById('conv-list');
+    list.innerHTML = '';
+    convs.forEach(c => {
+      const item = document.createElement('div');
+      item.className = 'conv-item' + (c.id === convId ? ' active' : '');
+
+      const label = document.createElement('div');
+      label.className = 'conv-label';
+      label.textContent = c.title;
+      label.onclick = () => openConv(c.id);
+
+      const del = document.createElement('button');
+      del.className = 'conv-del';
+      del.title = 'Delete conversation';
+      del.innerHTML = '&#xd7;';
+      del.onclick = async (e) => {
+        e.stopPropagation();
+        if (!confirm('Delete this conversation?')) return;
+        await req('DELETE', `/conversations/${c.id}`);
+        if (convId === c.id) {
+          convId = null;
+          stopPoll();
+          showNoConv();
+          document.getElementById('input-bar').classList.add('hidden');
+        }
+        await refreshSidebar();
+      };
+
+      item.appendChild(label);
+      item.appendChild(del);
+      list.appendChild(item);
+    });
+  }
+
+  function showNoConv() {
+    const box = document.getElementById('messages');
+    box.innerHTML = '<div class="no-conv">Select or create a conversation to start.</div>';
+  }
+
+  function showWelcome() {
+    const box = document.getElementById('messages');
+    box.innerHTML = '';
+    const w = document.createElement('div');
+    w.id = 'welcome';
+    w.innerHTML = `
+      <h2>verify_ai</h2>
+      <p>Ask a question about SEC financial filings. Every number comes with a source citation you can check.</p>
+      <div id="starter-chips"></div>
+    `;
+    box.appendChild(w);
+    const chips = w.querySelector('#starter-chips');
+    STARTERS.forEach(q => {
+      const btn = document.createElement('button');
+      btn.className = 'chip';
+      btn.textContent = q;
+      btn.onclick = () => sendText(q);
+      chips.appendChild(btn);
+    });
+  }
+
+  async function openConv(id) {
+    convId = id;
+    stopPoll();
+    await refreshSidebar();
+    const msgs = await req('GET', `/conversations/${id}/messages`);
+    renderMsgs(msgs);
+    document.getElementById('input-bar').classList.remove('hidden');
+    document.getElementById('msg-input').focus();
+  }
+
+  function renderMsgs(msgs) {
+    const box = document.getElementById('messages');
+    if (!msgs.length) {
+      showWelcome();
+      return;
+    }
+    box.innerHTML = '';
+    msgs.forEach(m => appendBubble(m.role, m.content, (m.metadata || {}).numbers || []));
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function appendBubble(role, content, numbers) {
+    const box = document.getElementById('messages');
+    const row = document.createElement('div');
+    row.className = `msg-row ${role}`;
+
+    let cite = '';
+    if (numbers && numbers.length) {
+      const lines = numbers.map(n => {
+        const val = typeof n.value === 'number' ? n.value.toFixed(4) : n.value;
+        const unit = n.unit && n.unit !== 'ratio' && n.unit !== 'decimal' ? ' ' + n.unit : '';
+        return `<b>${esc(n.id)}</b>: ${val}${unit} — ${esc(n.doc_id)} · ${esc(n.line_item)}`;
+      }).join('<br>');
+      cite = `<div class="citation">${lines}</div>`;
+    }
+
+    row.innerHTML = `<div class="bubble">${esc(content)}</div>${cite}`;
+    box.appendChild(row);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function setThinking(text) {
+    let el = document.getElementById('thinking-row');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'thinking-row';
+      el.className = 'msg-row assistant';
+      el.innerHTML = '<div class="thinking"></div>';
+      document.getElementById('messages').appendChild(el);
+    }
+    el.querySelector('.thinking').textContent = text || 'Thinking…';
+    document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+  }
+
+  function removeThinking() {
+    const el = document.getElementById('thinking-row');
+    if (el) el.remove();
+  }
+
+  function stopPoll() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    removeThinking();
+  }
+
+  function startPoll(requestId) {
+    setThinking('Thinking…');
+    setSending(true);
+    pollTimer = setInterval(async () => {
+      try {
+        const s = await req('GET', `/requests/${requestId}`);
+        if (s.status === 'running') {
+          setThinking(s.step || 'Thinking…');
+        } else {
+          stopPoll();
+          setSending(false);
+          if (s.status === 'error') {
+            appendBubble('assistant', 'Error: ' + (s.message || 'Unknown error'), []);
+          } else {
+            const msgs = await req('GET', `/conversations/${convId}/messages`);
+            renderMsgs(msgs);
+          }
+          await refreshSidebar();
+        }
+      } catch { /* keep polling */ }
+    }, 600);
+  }
+
+  function setSending(on) {
+    document.getElementById('send-btn').disabled = on;
+    document.getElementById('msg-input').disabled = on;
+  }
+
+  async function sendText(content) {
+    if (!convId) return;
+    const input = document.getElementById('msg-input');
+    input.value = '';
+    input.style.height = 'auto';
+    // Remove welcome screen and show user bubble
+    const box = document.getElementById('messages');
+    if (box.querySelector('#welcome')) box.innerHTML = '';
+    appendBubble('user', content, []);
+    setSending(true);
+    try {
+      const r = await req('POST', `/conversations/${convId}/messages`, { content });
+      startPoll(r.request_id);
+    } catch (e) {
+      appendBubble('assistant', 'Error: ' + e.message, []);
+      setSending(false);
+    }
+  }
+
+  async function send() {
+    const content = document.getElementById('msg-input').value.trim();
+    if (!content || !convId) return;
+    document.getElementById('msg-input').value = '';
+    document.getElementById('msg-input').style.height = 'auto';
+    await sendText(content);
+  }
+
+  document.getElementById('new-btn').onclick = async () => {
+    const c = await req('POST', '/conversations');
+    convId = c.id;
+    await refreshSidebar();
+    showWelcome();
+    document.getElementById('input-bar').classList.remove('hidden');
+    document.getElementById('msg-input').focus();
+  };
+
+  document.getElementById('send-btn').onclick = send;
+
+  document.getElementById('msg-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+
+  document.getElementById('msg-input').addEventListener('input', function () {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  });
+
+  refreshSidebar();
+</script>
+</body>
+</html>

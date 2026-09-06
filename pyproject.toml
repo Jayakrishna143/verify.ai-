@@ -1,0 +1,41 @@
+[project]
+name = "verify-ai"
+version = "0.1.0"
+description = "Verifiable AI pipeline over SEC EDGAR financial filings"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # ingest step 2 parses SEC HTML with bs4 + lxml. Docling was tried and
+    # removed (too slow, mangled iXBRL tables — see Decision 7). Re-add it only
+    # if a PDF-only filing ever needs parsing.
+    "beautifulsoup4>=4.15",
+    "lxml>=5",
+    # retrieval step 3: embedded Qdrant + hybrid search. The [fastembed] extra
+    # pulls fastembed + onnxruntime, which run bge-large-en-v1.5 (dense) and
+    # BM25 (sparse) locally with no torch — keeps Decision 7's torch removal
+    # intact (Decision 9).
+    "qdrant-client[fastembed]>=1.12",
+    # tools step 4: metrics.yaml is the ontology. YAML has no stdlib parser.
+    "pyyaml>=6",
+    "langgraph>=0.4",
+    "langchain-core>=0.3",
+    "langchain-google-genai>=2.1",
+    "langchain-anthropic>=0.3",
+    "python-dotenv>=1.0",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "requests>=2.32",
+]
+
+[tool.uv]
+# Restrict resolution to Linux; avoids python-dotenv conflict with taipy on macOS.
+environments = ["sys_platform == 'linux'"]
+# One venv at the repo root. Later folders (tools, pipeline, eval) add their
+# deps here. ingest step 1 uses only stdlib urllib; step 2 uses bs4.
+
+[tool.setuptools]
+packages = ["ingest", "retrieval", "tools", "pipeline", "api", "frontend"]
+
+[dependency-groups]
+dev = [
+    "playwright>=1.62.0",
+]
