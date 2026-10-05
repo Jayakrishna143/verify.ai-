@@ -15,7 +15,7 @@ from api.runner import get_status, start_run, start_resume
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 logfire.configure()
-logfire.instrument_langchain()
+# logfire.instrument_langchain()  # removed: no longer in logfire API
 
 
 @asynccontextmanager

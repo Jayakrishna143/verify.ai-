@@ -10,6 +10,10 @@ from pathlib import Path
 TICKERS = [
     "JPM", "BAC", "GS", "MS", "USB", "PNC", "COF", "AXP",
     "V", "MA", "BLK", "SCHW", "MET", "TRV", "CB",
+    # 20 added 2026-09-29 (Decision 24): banks, insurers, asset managers.
+    "WFC", "C", "TFC", "FITB", "KEY", "RF", "CFG", "HBAN", "MTB", "ALLY",
+    "AIG", "PGR", "ALL", "PRU", "AFL", "HIG",
+    "STT", "BNY", "TROW", "IVZ",
 ]
 
 # Live-verified 2026-08-13. Note BLK = 0002012383, which corrects the

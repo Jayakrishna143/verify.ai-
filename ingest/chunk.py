@@ -17,6 +17,8 @@ and lets us control section detection.
 import json
 import logging
 import re
+import shutil
+from datetime import datetime, timezone
 
 from bs4 import BeautifulSoup
 
@@ -113,7 +115,7 @@ def chunk_blocks(blocks: list[tuple[bool, str]]) -> list[dict]:
     return chunks
 
 
-def build_chunk_record(row: dict, idx: int, ch: dict) -> dict:
+def build_chunk_record(row: dict, idx: int, ch: dict, chunked_at: str) -> dict:
     doc_id = f"{row['ticker']}-{row['form']}-{row['fiscal_period']}"
     return {
         "chunk_id": f"{doc_id}#{idx:04d}",
@@ -129,14 +131,18 @@ def build_chunk_record(row: dict, idx: int, ch: dict) -> dict:
         "char_start": ch["char_start"],
         "char_end": ch["char_end"],
         "token_count": ch["token_count"],
+        "chunked_at": chunked_at,
         "text": ch["text"],
     }
 
 
 def main() -> None:
     rows = [json.loads(l) for l in open(cfg.MANIFEST, encoding="utf-8")]
+    chunked_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    stamp = chunked_at.replace(":", "").replace("+00:00", "Z")
+    timestamped = cfg.CHUNKS.with_name(f"chunks_{stamp}.jsonl")
     n_chunks = 0
-    with open(cfg.CHUNKS, "w", encoding="utf-8") as out:
+    with open(timestamped, "w", encoding="utf-8") as out:
         for row in rows:
             try:
                 html = open(row["local_path"], encoding="utf-8", errors="replace").read()
@@ -146,12 +152,15 @@ def main() -> None:
                 continue
             missing = sum(1 for ch in chunks if ch["section_id"] is None)
             for idx, ch in enumerate(chunks):
-                out.write(json.dumps(build_chunk_record(row, idx, ch)) + "\n")
+                out.write(json.dumps(build_chunk_record(row, idx, ch, chunked_at)) + "\n")
             n_chunks += len(chunks)
             log.info("+ %s %s %s: %d chunks", row["ticker"], row["form"], row["fiscal_period"], len(chunks))
             if missing:
                 log.debug("%s %s: %d/%d chunks have no section_id", row["ticker"], row["form"], missing, len(chunks))
-    log.info("chunk: %d chunks from %d documents -> %s", n_chunks, len(rows), cfg.CHUNKS.name)
+    # ingest/chunks.jsonl stays the stable name retrieval/config.py and
+    # colab_build_index.py read; the timestamped file is the versioned record.
+    shutil.copyfile(timestamped, cfg.CHUNKS)
+    log.info("chunk: %d chunks from %d documents -> %s (+ %s)", n_chunks, len(rows), timestamped.name, cfg.CHUNKS.name)
 
 
 if __name__ == "__main__":
